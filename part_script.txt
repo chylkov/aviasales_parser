@@ -1,0 +1,62 @@
+destination_list = list(filter(lambda x: x['departure_airport_iata'] == origin, routes))
+destination_list = list(map(lambda x: x['arrival_airport_iata'],destination_list))
+
+url = 'http://api.travelpayouts.com/v2/prices/month-matrix'
+
+datetime_start = datetime.strptime(date_start, '%Y-%m-%d')
+datetime_end = datetime.strptime(date_end, '%Y-%m-%d')
+
+tickets_list = []
+
+parameters = list(product(range_date(datetime_start, datetime_end), destination_list))
+
+for datetime_object, destination in tqdm(parameters, total=len(parameters)):
+    month, day = add_zero(datetime_object.month), add_zero(datetime_object.day)
+    date = datetime_object.strftime('%Y-%m-%d')
+    
+    url_for_cash = f'https://www.aviasales.ru/search/{origin}{day}{month}{destination}1'
+    driver.get(url_for_cash)
+    sleep(time_sleep)
+    
+for datetime_object, destination in tqdm(parameters, total=len(parameters)):
+    
+    params = {'currency': 'rub', 'show_to_affiliates':'false', 'token' : ACCESS_TOKEN, 'one_way':'true',
+            'origin': origin, 'destination': destination, 'month':date}
+
+    response = requests.get(url, params=params)
+    
+    if 'errors' not in json.loads(response.text)['data']:
+        tickets = tickets + json.loads(response.text)['data']
+        
+        
+ponts_list =  list(set(map(lambda x: x['destination'], tickets)))
+parameters = list(product(range_date(datetime_start, datetime_end), ponts_list))
+
+tickets2 = []
+for datetime_object, point in tqdm(parameters, total=len(parameters)):
+    month, day = add_zero(datetime_object.month), add_zero(datetime_object.day)
+    date = datetime_object.strftime('%Y-%m-%d')
+    
+    url_for_cash = f'https://www.aviasales.ru/search/{origin}{day}{month}{destination}1'
+    driver.get(url_for_cash)
+    sleep(time_sleep)
+    
+for datetime_object, point in tqdm(parameters, total=len(parameters)):
+    
+    params = {'currency': 'rub', 'show_to_affiliates':'false', 'token' : ACCESS_TOKEN, 'one_way':'true',
+            'origin': point, 'destination': final_destination, 'month':date}
+
+    response = requests.get(url, params=params)
+    
+    if 'errors' not in json.loads(response.text)['data']:
+        tickets2 = tickets2 + json.loads(response.text)['data']
+        
+df = pd.DataFrame(tickets + tickets2)
+
+feature = list(df.columns)
+feature.remove('found_at')
+
+df.sort_values(by = 'found_at', ascending=False, inplace=True)
+df.drop_duplicates(inplace = True, keep = 'first', subset = feature)
+
+df.to_csv('routes_price.txt', index = False)
