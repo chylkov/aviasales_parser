@@ -75,11 +75,35 @@ def list_dates(datetime_start, datetime_end):
     return range_dates
 
 
-def get_ticket(origin, destination, date, time_sleep = 20):
+def get_ticket(origin, destination, date, update_base = False, time_sleep = 20):
+
     root = 'tickets'
-    driver = webdriver.Chrome(options=options, chrome_options=chrome_options, service = service)
     month, day = add_zero(date.month), add_zero(date.day)
     date = date.strftime('%Y-%m-%d')
+
+    dir_json = os.path.join('.', root, 'json')
+    json_pattern = os.path.join(dir_json,'*.json')
+    file_list = glob.glob(json_pattern)
+    ticket_list = list(map(lambda x: x.split('.')[-2].split('\\')[-1], file_list))
+    name_ticket = origin + '_' + destination + '_' + date
+
+    now = datetime.now()
+    path_ticket = os.path.join(dir_json, name_ticket + '.json')
+
+    #проверяем нужно ли качать билет
+    #1е условие - запрос от пользователя
+    #2е условие - есть ли такой файл
+    #3е условие если он старше 2 часов
+    #4е условие пустой ли файл
+    not_update_base = (not update_base and                                         
+                    name_ticket in ticket_list and 
+                    os.path.getmtime(path_ticket) + 2 * 3600 > now.timestamp() and 
+                    os.path.getsize(path_ticket) > 2) 
+
+    # скрипаем если не нужно обновлять
+    if not_update_base: return
+
+    driver = webdriver.Chrome(options=options, chrome_options=chrome_options, service = service)
     url = 'https://www.aviasales.ru/search/' + origin + day + month + destination + str(number_ticket)
     driver.get(url)
     time.sleep(time_sleep)
